@@ -1,0 +1,42 @@
+name: Qarina Neural Voice
+# چلانے کا طریقہ: Actions → Qarina Neural Voice → Run workflow
+# یہ Meta MMS کی اردو آواز سے نمونے بنا کر samples/ میں commit کر دیتا ہے،
+# اور browser کے لیے ONNX ماڈل artifact میں رکھتا ہے۔
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  make-voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install (CPU torch + transformers)
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q transformers scipy numpy
+      - name: Make Urdu samples
+        run: python tools/make_voice.py
+      - name: Commit samples back to repo
+        run: |
+          git config user.name "qarina-bot"
+          git config user.email "qarina-bot@users.noreply.github.com"
+          git add samples
+          git commit -m "neural Urdu voice samples" || echo "nothing new"
+          git push
+      - name: Export browser model (ONNX - stage 2)
+        continue-on-error: true
+        run: |
+          pip install -q "optimum[exporters]"
+          optimum-cli export onnx --model facebook/mms-tts-urd-script_arabic models-onnx/
+      - name: Upload ONNX models
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: qarina-neural-models
+          path: models-onnx/
+          if-no-files-found: ignore
