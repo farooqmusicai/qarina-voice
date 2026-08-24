@@ -1,0 +1,38 @@
+name: Qarina ONNX for Browser
+# چلانے کا طریقہ: Actions → Qarina ONNX for Browser → Run workflow
+# یہ MMS اردو ماڈل کو browser کے لیے ONNX بنا کر models-web/ میں commit کر دیتا ہے
+# (fp32 + int8 + vocab + test vectors + جانچ کا نمونہ wav)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  make-onnx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install (CPU torch + onnx + cython)
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q numpy scipy cython onnx onnxruntime
+      - name: Clone VITS code + build monotonic_align
+        run: |
+          git clone --depth 1 https://github.com/jaywalnut310/vits
+          cd vits/monotonic_align
+          python setup.py build_ext --inplace || true
+          mkdir -p monotonic_align
+          cp build/lib*/monotonic_align/core*.so monotonic_align/
+          cd .. && VITS_DIR=. python -c "import monotonic_align; print('monotonic_align OK')"
+      - name: Export + quantize + verify
+        run: VITS_DIR=vits python tools/make_onnx.py
+      - name: Commit models back to repo
+        run: |
+          git config user.name "qarina-bot"
+          git config user.email "qarina-bot@users.noreply.github.com"
+          git add models-web samples/neural-int8-test.wav
+          git commit -m "browser ONNX models (fp32+int8) + vocab + test vectors" || echo "nothing new"
+          git push
