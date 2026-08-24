@@ -1,0 +1,7 @@
+{
+  "name": "qarina-browser-check",
+  "private": true,
+  "type": "module",
+  "description": "CI gate: run the published ONNX in real Chromium via onnxruntime-web before it ships.",
+  "dependencies": { "onnxruntime-web": "^1.27.0", "playwright": "^1.50.0" }
+}
