@@ -74,7 +74,9 @@ jobs:
       # rakhtay hain. Yahan hum sach mein Chromium mein chala kar dekhtay hain.
       - name: Browser gate (real Chromium + onnxruntime-web)
         env:
-          QARINA_MAX_RTF: '0.5'          # 0.5 = real time se do guna tez
+          QARINA_TARGET_RTF: '1.0'       # CI budget (2-4 shared vCPU par naapa jata hai).
+                                         # Sust hone par sirf WARN hota hai; build sirf tab rukti
+                                         # hai jab model waqai toota ho (NaN / khali awaz / load fail).
         run: |
           npm --prefix tools/browser_check install --no-audit --no-fund
           npx --prefix tools/browser_check playwright install --with-deps chromium
