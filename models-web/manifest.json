@@ -1,0 +1,53 @@
+{
+ "schema": 1,
+ "iso": "urd-script_arabic",
+ "release_tag": "models-v1",
+ "base_url": "https://github.com/farooqmusicai/qarina-voice/releases/download/models-v1/",
+ "sampling_rate": 16000,
+ "add_blank": 1,
+ "vocab_size": 58,
+ "default": "hybrid",
+ "variants": {
+  "fp32": {
+   "file": "model.fp32.onnx",
+   "size_mb": 114.04,
+   "sha256": "a6c7fe143e0fb3331f7d540683983162f6e3aac529bd0b5d58a58bca9a82daf5",
+   "duration_s": 3.87,
+   "rms": 0.1697,
+   "py_rtf": 0.258,
+   "browser_rtf": 0.672,
+   "browser_load_ms": 2703,
+   "browser_ok": true,
+   "browser_threads": 4
+  },
+  "q8": {
+   "file": "model.q8.onnx",
+   "size_mb": 38.03,
+   "sha256": "2a0ee5c469c5a6007161e175b93be9fa86bb1ca29eac8879081dbef8defbd82a",
+   "duration_s": 3.55,
+   "rms": 0.1715,
+   "py_rtf": 2.533,
+   "browser_rtf": 6.85,
+   "browser_load_ms": 1343,
+   "browser_ok": true,
+   "browser_threads": 4
+  },
+  "hybrid": {
+   "file": "model.hybrid.onnx",
+   "size_mb": 72.89,
+   "sha256": "e69d40366fd9e43dc81465d89083951a3cb94a87be3a26fc13ea60b5920bc5b6",
+   "duration_s": 3.76,
+   "rms": 0.1748,
+   "py_rtf": 0.291,
+   "browser_rtf": 0.737,
+   "browser_load_ms": 1422,
+   "browser_ok": true,
+   "browser_threads": 4
+  }
+ },
+ "gate": {
+  "target_rtf": 1,
+  "threads": 4,
+  "within_budget": true
+ }
+}

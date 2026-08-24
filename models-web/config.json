@@ -1,0 +1,18 @@
+{
+ "iso": "urd-script_arabic",
+ "source": "facebook/mms-tts (Meta MMS research, CC-BY-NC 4.0)",
+ "sampling_rate": 16000,
+ "add_blank": 1,
+ "blank_id": 0,
+ "noise_scale": 0.667,
+ "length_scale": 1.0,
+ "noise_scale_w": 0.8,
+ "inputs": [
+  "x",
+  "x_length",
+  "noise_scale",
+  "length_scale",
+  "noise_scale_w"
+ ],
+ "output": "y"
+}
