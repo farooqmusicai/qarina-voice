@@ -1,0 +1,12 @@
+name: Guard repo size
+# Yeh workflow permanent bandobast hai: koi bhi bara file main branch tak
+# pohanche hi na. Push reject hone se pehle yahan pakri jaati hai.
+on:
+  push:
+  pull_request:
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash tools/guard_no_big_files.sh

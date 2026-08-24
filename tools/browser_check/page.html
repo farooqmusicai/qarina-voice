@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><title>qarina browser gate</title>
+<script type="module">
+import * as ort from './_ort/ort.min.mjs';
+ort.env.wasm.wasmPaths = '/_ort/';   // absolute: ORT resolves relative paths against its own module URL
+ort.env.wasm.numThreads = 1;          // no cross-origin isolation needed
+ort.env.logLevel = 'error';
+
+window.bench = async (file, ids, cfg, reps) => {
+  const t0 = performance.now();
+  const s  = await ort.InferenceSession.create(file, { executionProviders: ['wasm'] });
+  const load = performance.now() - t0;
+
+  const feeds = () => ({
+    x:             new ort.Tensor('int64',   BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
+    x_length:      new ort.Tensor('int64',   BigInt64Array.from([BigInt(ids.length)]), [1]),
+    noise_scale:   new ort.Tensor('float32', Float32Array.from([cfg.noise_scale]),   [1]),
+    length_scale:  new ort.Tensor('float32', Float32Array.from([cfg.length_scale]),  [1]),
+    noise_scale_w: new ort.Tensor('float32', Float32Array.from([cfg.noise_scale_w]), [1]),
+  });
+
+  await s.run(feeds());                                  // warm-up, not timed
+  let best = Infinity, y = null;
+  for (let i = 0; i < reps; i++) {
+    const t1 = performance.now();
+    y = (await s.run(feeds())).y;
+    best = Math.min(best, performance.now() - t1);
+  }
+  const d = y.data;
+  let sum = 0, finite = true;
+  for (const v of d) { sum += v * v; if (!Number.isFinite(v)) finite = false; }
+  const seconds = d.length / cfg.sampling_rate;
+  return { load_ms: Math.round(load), run_ms: Math.round(best), samples: d.length,
+           duration_s: +seconds.toFixed(2), rtf: +(best / 1000 / seconds).toFixed(3),
+           rms: +Math.sqrt(sum / d.length).toFixed(5), finite };
+};
+window.__ready = true;
+</script>

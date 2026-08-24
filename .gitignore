@@ -1,0 +1,6 @@
+# Bhaari build output — yeh Release asset bantay hain, commit nahi hotay.
+build/
+tmp-mms/
+vits/
+models-web/*.onnx
+**/node_modules/

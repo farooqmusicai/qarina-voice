@@ -1,21 +1,48 @@
 name: Qarina ONNX for Browser
+
+# Wazan (.onnx) ab git mein NAHI jaate. Woh Release asset bantay hain (2 GB tak),
+# aur git mein sirf models-web/manifest.json rehta hai jo unhein point karta hai.
+# Is liye GitHub ki 100 MB wali had ab kabhi raasta nahi rokti.
+
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag for the weights"
+        default: "models-v1"
+      publish:
+        description: "Publish to the Release (off = build + test only)"
+        type: boolean
+        default: true
+
 permissions:
   contents: write
+
+concurrency:                       # do dispatch ek saath push na karein
+  group: make-onnx
+  cancel-in-progress: false
+
 jobs:
   make-onnx:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # v5 / v6 / v5 Node 24 par chaltay hain — purane v4/v5 wala
+      # "Node.js 20 is deprecated" warning khatam.
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+          cache: pip
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
       - name: Install (CPU torch + onnx + cython)
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q numpy scipy cython onnx onnxruntime
+          pip install -q numpy scipy cython onnx onnxruntime sympy
+
       - name: Clone VITS code + build monotonic_align
         run: |
           git clone --depth 1 https://github.com/jaywalnut310/vits
@@ -24,12 +51,59 @@ jobs:
           mkdir -p monotonic_align
           cp build/lib*/monotonic_align/core*.so monotonic_align/
           cd .. && VITS_DIR=. python -c "import monotonic_align; print('monotonic_align OK')"
+
       - name: Export + quantize + verify
+        env:
+          QARINA_RELEASE_TAG: ${{ inputs.tag }}
         run: VITS_DIR=vits python tools/make_onnx.py
-      - name: Commit models back to repo
+
+      # Pehle push fail hua tha aur 3 minute ki mehnat zaya ho gayi thi.
+      # if: always() ka matlab: build har haal mein mehfooz rahega.
+      - name: Keep the build no matter what happens next
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qarina-onnx-${{ github.run_number }}
+          path: |
+            build/
+            models-web/
+            samples/
+          retention-days: 30
+          if-no-files-found: warn
+
+      # Asal gate: Python ka onnxruntime aur browser ka WASM build alag kernels
+      # rakhtay hain. Yahan hum sach mein Chromium mein chala kar dekhtay hain.
+      - name: Browser gate (real Chromium + onnxruntime-web)
+        env:
+          QARINA_MAX_RTF: '0.5'          # 0.5 = real time se do guna tez
         run: |
-          git config user.name "qarina-bot"
+          npm --prefix tools/browser_check install --no-audit --no-fund
+          npx --prefix tools/browser_check playwright install --with-deps chromium
+          node tools/browser_check/check.mjs build models-web/manifest.json
+
+      - name: Guard — koi bhi bara blob git mein na ghusay
+        run: bash tools/guard_no_big_files.sh
+
+      - name: Publish weights to the Release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "Qarina browser ONNX — $TAG" \
+              --notes "MMS Urdu VITS → ONNX for onnxruntime-web. Source: facebook/mms-tts (CC-BY-NC 4.0)."
+          gh release upload "$TAG" build/*.onnx --clobber
+          gh release view "$TAG" --json assets \
+            --jq '.assets[] | "\(.name)  \(.size/1048576 | floor) MB"'
+
+      - name: Commit metadata only (never the weights)
+        if: ${{ inputs.publish }}
+        run: |
+          git config user.name  "qarina-bot"
           git config user.email "qarina-bot@users.noreply.github.com"
-          git add models-web samples/neural-int8-test.wav
-          git commit -m "browser ONNX models (fp32+int8) + vocab + test vectors" || echo "nothing new"
+          git add models-web samples/neural-test.wav
+          git diff --cached --quiet && { echo "nothing new"; exit 0; }
+          git commit -m "browser ONNX manifest + vocab + test vectors (${{ inputs.tag }})"
+          git pull --rebase --autostash
           git push
