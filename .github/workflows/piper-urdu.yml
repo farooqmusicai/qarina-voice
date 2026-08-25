@@ -1,0 +1,89 @@
+# Piper ki Urdu awazein (AURAT + mard) -> Release
+#
+# MMS wala model sirf ek mard ki awaz deta hai. Piper ke paas Urdu ki do
+# awazein hain, dono 22050 Hz aur MMS se chhoti. Yeh workflow unhe laata hai,
+# quantize karta hai, aur ASAL onnxruntime par bola kar naapta hai — phir
+# awaz ke namoone (wav) Release par rakh deta hai taake sun kar faisla ho.
+name: Piper Urdu (Aurat + Mard)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/piper-urdu.yml'
+      - 'tools/piper_build.py'
+      - 'tools/piper_ids.mjs'
+      - 'tools/piper_make_ids.mjs'
+      - 'models-web/piper_phoneme_ids.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: piper-urdu
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: python packages
+        run: pip install --upgrade "onnx>=1.16" "onnxruntime>=1.18" numpy scipy
+
+      # eSpeak wahi jo website par chalta hai — taake CI ka namoona aur
+      # browser ki awaz hu-ba-hu ek jaisi ho
+      - name: eSpeak (wahi jo site par hai)
+        run: |
+          mkdir -p build_piper
+          B=https://raw.githubusercontent.com/farooqmusicai/urduzaban/main/qarina-tts
+          curl -fsSL -o build_piper/espeak-ng.js   "$B/espeak-ng.js"
+          curl -fsSL -o build_piper/espeak-ng.wasm "$B/espeak-ng.wasm"
+          ls -l build_piper
+
+      - name: phonemes -> ids
+        run: node tools/piper_make_ids.mjs
+
+      - name: models + awaz ke namoone
+        run: python tools/piper_build.py
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: piper-urdu-samples
+          path: |
+            build_piper/*.wav
+            build_piper/piper-manifest.json
+            build_piper/ids.json
+          if-no-files-found: warn
+
+      - name: Release par rakho
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=piper-urdu
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" -t "Piper Urdu — aurat + mard" \
+              -n "rhasspy/piper-voices ur_PK (MIT). aegis_female = AURAT, fasih = mard. 22050 Hz."
+          gh release upload "$TAG" build_piper/*.onnx build_piper/*.wav \
+            build_piper/piper-manifest.json build_piper/*.config.json --clobber
+
+      - name: manifest git mein
+        run: |
+          mkdir -p models-web
+          cp build_piper/piper-manifest.json models-web/piper-manifest.json
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add models-web/piper-manifest.json
+          git commit -m "piper: urdu awazon ka manifest (auto)" || echo "koi tabdeeli nahi"
+          git push || echo "push nahi hua"
